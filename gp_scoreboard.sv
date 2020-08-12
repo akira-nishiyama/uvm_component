@@ -40,7 +40,7 @@ class gp_scoreboard #(type T=uvm_object, type M=uvm_object) extends uvm_scoreboa
 
   // queue x 2
   T obs_q [$], exp_q [$];
-  T obs_err_q [$], exp_err_q [$];	/// for keep error items
+  T obs_err_q [$];	/// for keep error items
 
   function new (string name, uvm_component parent);
     super.new(name, parent);
@@ -91,17 +91,17 @@ class gp_scoreboard #(type T=uvm_object, type M=uvm_object) extends uvm_scoreboa
 
   // UVM report phase
   virtual function void report_phase(uvm_phase phase);
-    if(mode==8'h00)begin
-      obs_q = obs_err_q;
-      exp_q = exp_err_q;
-    end
     if(obs_q.size()!=0)begin
-      uvm_report_info("SCRBD", "observed data queue is not empty");
+      uvm_report_error("SCRBD", "observed data queue is not empty");
       foreach (obs_q[i]) obs_q[i].print;
     end
     if(exp_q.size()!=0)begin
-      uvm_report_info("SCRBD", "expected data queue is not empty");
+      uvm_report_error("SCRBD", "expected data queue is not empty");
       foreach (exp_q[i]) exp_q[i].print;
+    end
+    if(obs_err_q.size()!=0)begin
+      uvm_report_error("SCRBD", "extra observed data queue is not empty");
+      foreach (obs_err_q[i]) obs_err_q[i].print;
     end
   endfunction
 
@@ -111,13 +111,21 @@ class gp_scoreboard #(type T=uvm_object, type M=uvm_object) extends uvm_scoreboa
   virtual task mode0;
     forever begin
       wait(obs_q.size()!=0);
-      if(exp_q[0].compare(obs_q[0]))begin
-        uvm_report_info("SCRBD", "data compare OK");
+      if(exp_q.size() == 0) begin
+        uvm_report_error("SCRBD", "data observed but expected data que is empty.");
+        obs_err_q.push_back(obs_q.pop_front());
+      end else begin
+        if(exp_q[0].compare(obs_q[0]))begin
+          uvm_report_info("SCRBD", "data compare OK");
+        end else begin
+          uvm_report_error("SCRBD", "data compare NG");
+          uvm_report_info("SCRBD", "==============expectation==============");
+          exp_q[0].print;
+          uvm_report_info("SCRBD", "================observed===============");
+          obs_q[0].print;
+        end
         obs_q.delete(0);
         exp_q.delete(0);
-      end else begin
-        obs_err_q.push_back(obs_q.pop_front());
-        exp_err_q.push_back(exp_q.pop_front());
       end
     end
   endtask
